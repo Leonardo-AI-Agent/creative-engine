@@ -1,0 +1,9 @@
+fastapi[all]       # FastAPI with all optional dependencies
+uvicorn            # ASGI server to run FastAPI
+loguru             # For logging
+gradio_client      # HuggingFace integration
+pydantic           # For request/response validation
+httpx              # For making async HTTP requests
+pytest             # For testing
+python-dotenv 
+pytest-asyncio
