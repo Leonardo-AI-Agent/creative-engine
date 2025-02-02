@@ -191,7 +191,8 @@ async def generate_sketch(request: PromptRequest):
     """
     Generates an image (sketch) from a text prompt with an optional style.
     If a style is provided, its descriptive text is added to the prompt.
-    Returns the local file path of the generated flux image.
+    Then, the generated image has its background removed via an external service.
+    Returns the local file path of the final image.
     """
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -234,14 +235,36 @@ async def generate_sketch(request: PromptRequest):
         image_result = await generate_image()
         image_local_path = DATA_DIR / f"{timestamp}_flux_image.png"
 
-        # Save the image file, handling both URL and local file cases.
+        # Save the generated flux image.
         if image_result.startswith("http://") or image_result.startswith("https://"):
             await download_file(image_result, image_local_path)
         else:
             shutil.copy(image_result, image_local_path)
 
         logger.info(f"🎨 Image saved: {image_local_path}")
-        return {"image_filepath": str(image_local_path)}
+
+        # ---------------------------------------------------------------------
+        # Remove the background from the generated image using the background
+        # removal service from the "not-lain/background-removal" model.
+        # ---------------------------------------------------------------------
+        from gradio_client import Client as GradioClient, handle_file
+        bg_client = GradioClient("not-lain/background-removal")
+        bg_result = bg_client.predict(
+            image=handle_file(str(image_local_path)),
+            api_name="/image"
+        )
+        # If the result is a list, take the first element.
+        if isinstance(bg_result, list):
+            bg_result = bg_result[0]
+
+        image_bg_local_path = DATA_DIR / f"{timestamp}_flux_image_bg.png"
+        if isinstance(bg_result, str) and (bg_result.startswith("http://") or bg_result.startswith("https://")):
+            await download_file(bg_result, image_bg_local_path)
+        else:
+            shutil.copy(bg_result, image_bg_local_path)
+        logger.info(f"🖼️ Background removed image saved: {image_bg_local_path}")
+
+        return {"image_filepath": str(image_bg_local_path)}
     except Exception as e:
         logger.error(f"Unexpected error in generate_sketch: {e}")
         raise HTTPException(status_code=500, detail="Error generating image.")
