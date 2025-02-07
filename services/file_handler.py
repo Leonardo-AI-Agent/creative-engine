@@ -5,6 +5,7 @@ import aiofiles
 from pathlib import Path
 from fastapi import HTTPException
 from loguru import logger
+import io
 
 # Create a single async HTTP client instance for file downloads.
 http_client = httpx.AsyncClient(timeout=120.0)
@@ -42,9 +43,23 @@ async def fetch_or_copy_file(source: str, destination: Path) -> None:
 async def save_upload_file(upload_file, destination: Path) -> None:
     """
     Asynchronously saves an uploaded file to the destination using aiofiles.
+    If the provided upload_file does not have an awaitable read() method,
+    it is assumed to be raw bytes and used directly.
     """
     try:
-        content = await upload_file.read()
+        # Check if the object has a "read" method.
+        if hasattr(upload_file, "read"):
+            read_method = upload_file.read
+            # Determine if the read result is a coroutine.
+            result = read_method()
+            if asyncio.iscoroutine(result):
+                content = await result
+            else:
+                content = result
+        else:
+            # If no read() method, assume upload_file is already bytes.
+            content = upload_file
+
         async with aiofiles.open(destination, "wb") as out_file:
             await out_file.write(content)
         logger.info(f"📂 Uploaded file saved: {destination}")

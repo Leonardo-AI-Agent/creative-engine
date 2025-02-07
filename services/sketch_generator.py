@@ -40,7 +40,7 @@ async def generate_sketch(prompt: str, style: str = None) -> str:
         updated_prompt = prompt
         if style:
             if style in STYLE_DESCRIPTIONS:
-                updated_prompt = f"{prompt}. {STYLE_DESCRIPTIONS[style]}"
+                updated_prompt = f"{prompt}. {STYLE_DESCRIPTIONS[style]} Full body or full piece."
             else:
                 logger.warning(f"Style '{style}' not recognized. Using original prompt.")
         

@@ -13,7 +13,7 @@ from services.processing import process_3d_job, extract_glb_async
 async def generate_3d_preview(upload_file: UploadFile) -> dict:
     """
     Accepts an image upload, saves it, generates a 3D preview (video),
-    and returns the video file path along with any subtitles.
+    and returns a dictionary with the video file path along with any subtitles.
     """
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
