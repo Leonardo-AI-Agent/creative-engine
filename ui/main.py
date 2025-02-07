@@ -17,8 +17,8 @@ import httpx
 from loguru import logger
 
 # Import local service functions.
-from services.sketch_generator import generate_sketch  # local async function for sketches
-from services.model_generator import generate_3d_preview, generate_model  # local async functions for 3D preview/model
+from services.sketch_generator import generate_sketch  # async function for sketch generation
+from services.model_generator import generate_3d_preview, generate_model  # async functions for 3D preview/model
 from api_calls import stream_chat  # external API function for chat
 from config import BASE_URL, CHAT_BASE_URL
 
@@ -79,7 +79,7 @@ st.markdown(
 )
 
 # -------------------------------
-# Sidebar: Instructions, Service Selection & About
+# Sidebar: Instructions, Service Selection & Clean Button
 # -------------------------------
 with st.sidebar:
     st.header("Instructions")
@@ -93,23 +93,21 @@ with st.sidebar:
         **Select a service** from the dropdown below:
           - **Chat:** Interact via chat with streaming responses.
           - **Generate Sketch (Image):** Provide a text prompt (optionally with a style) to generate an image.
-          - **Generate 3D Preview:** Upload an image to generate a 3D preview (video).
-          - **Generate 3D Model:** Upload an image to generate a 3D model.
+          - **Generate 3D Preview:** Use your last generated sketch or upload an image to generate a 3D preview (video).
+          - **Generate 3D Model:** Use your last generated sketch or upload an image to generate a 3D model.
         """
     )
     service = st.selectbox(
         "Select Service",
-        ["Chat", "Generate Sketch (Image)", "Generate 3D Preview", "Generate 3D Model"], index=1
+        ["Chat", "Generate Sketch (Image)", "Generate 3D Preview", "Generate 3D Model"]
     )
-    # Add the Clean button with an icon (here we use a broom emoji).
+    # Clean button to clear previous context
     if st.button("🧹 Clean", key="clean"):
         st.session_state.messages = []
         st.session_state.last_image = None
         st.session_state.processing = False
         st.experimental_rerun()
-        
     st.info("Built with modern Streamlit components and minimalistic design.")
-
 
 # -------------------------------
 # Session State Initialization
@@ -189,7 +187,7 @@ if service == "Generate Sketch (Image)":
             st.session_state.last_image = None
             thread_results = {}
             file_ready_event = threading.Event()
-            # Create an image placeholder for animated loading preview.
+            # Animated loading preview
             image_placeholder = st.empty()
             loading_gif_url = "https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif"
             image_placeholder.image(loading_gif_url, use_container_width=True)
@@ -228,11 +226,18 @@ if service == "Generate Sketch (Image)":
 # -------------------------------
 elif service == "Generate 3D Preview":
     st.header("Generate 3D Preview (Video)")
-    uploaded_file = st.file_uploader("Upload an image file", type=["png", "jpg", "jpeg"])
-    if uploaded_file and st.button("Generate 3D Preview"):
-        # Create a preview container with an animated loading overlay.
+    # If a sketch has been generated, use it; otherwise, allow file upload.
+    if st.session_state.last_image:
+        st.info("Using the last generated sketch for 3D Preview.")
+        with open(st.session_state.last_image, "rb") as f:
+            file_bytes = f.read()
+        upload_file = UploadFile(filename=os.path.basename(st.session_state.last_image), file=io.BytesIO(file_bytes))
+    else:
+        upload_file = st.file_uploader("Upload an image file", type=["png", "jpg", "jpeg"])
+    if upload_file and st.button("Generate 3D Preview"):
+        # Create a preview container with the image and loading overlay.
         try:
-            file_bytes = uploaded_file.getvalue()
+            file_bytes = upload_file.getvalue()
             encoded_image = base64.b64encode(file_bytes).decode("utf-8")
             preview_placeholder = st.empty()
             preview_html = f"""
@@ -249,7 +254,7 @@ elif service == "Generate 3D Preview":
         file_ready_event = threading.Event()
         def call_generate_preview():
             try:
-                result = asyncio.run(generate_3d_preview(uploaded_file))
+                result = asyncio.run(generate_3d_preview(upload_file))
                 thread_results.update(result)
             except Exception as e:
                 thread_results["error"] = str(e)
@@ -269,6 +274,7 @@ elif service == "Generate 3D Preview":
             video_path = thread_results["video_filepath"]
             subtitles = thread_results.get("subtitles", "")
             preview_placeholder.empty()
+            # Display video with autoplay using an HTML video tag.
             st.markdown(f'<video src="{video_path}" autoplay controls style="width: 100%;"></video>', unsafe_allow_html=True)
             st.session_state.messages.append({
                 "role": "assistant",
@@ -281,10 +287,17 @@ elif service == "Generate 3D Preview":
 # -------------------------------
 elif service == "Generate 3D Model":
     st.header("Generate 3D Model")
-    uploaded_file = st.file_uploader("Upload an image file", type=["png", "jpg", "jpeg"])
-    if uploaded_file and st.button("Generate 3D Model"):
+    # Use the last generated sketch if available; otherwise, upload a file.
+    if st.session_state.last_image:
+        st.info("Using the last generated sketch for 3D Model.")
+        with open(st.session_state.last_image, "rb") as f:
+            file_bytes = f.read()
+        upload_file = UploadFile(filename=os.path.basename(st.session_state.last_image), file=io.BytesIO(file_bytes))
+    else:
+        upload_file = st.file_uploader("Upload an image file", type=["png", "jpg", "jpeg"])
+    if upload_file and st.button("Generate 3D Model"):
         try:
-            glb_filepath = asyncio.run(generate_model(uploaded_file))
+            glb_filepath = asyncio.run(generate_model(upload_file))
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": f"3D model generated: {glb_filepath}"
