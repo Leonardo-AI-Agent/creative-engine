@@ -2,7 +2,7 @@ import streamlit as st
 import time
 
 def display_chat(messages):
-    """Display the chat messages."""
+    """Display the conversation history."""
     for msg in messages:
         if msg["role"] == "user":
             with st.chat_message("user"):
@@ -15,8 +15,10 @@ def display_chat(messages):
                 if msg.get("video"):
                     st.video(msg["video"])
 
-def run_fake_progress_until_event(event, total_time=75.0, update_interval=0.5):
-    """Run a non-linear progress bar that stops once the event is set."""
+def run_progress(event, total_time=75.0, update_interval=0.5):
+    """
+    Display a non-linear progress bar until the threading event is set.
+    """
     progress_bar = st.progress(0)
     message_placeholder = st.empty()
     iterations = int(total_time / update_interval)
